@@ -1,9 +1,7 @@
-from typing import Union
-
 from fastapi import FastAPI
-from Controllers import DummyController
+from Controllers import ChatController
 
 app = FastAPI()
 
 # Register controllers here
-app.include_router(DummyController.router)
+app.include_router(ChatController.router)
