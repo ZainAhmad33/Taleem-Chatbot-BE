@@ -9,13 +9,13 @@ from groq import Groq
 class ChatService:
   def __init__(self):
     self.chat_history = list()
-    self.historical_questions = list()
+    self.historical_questions = ''
     self.chroma_client = chromadb.PersistentClient(path=os.path.join(os.getcwd(), "chroma_db"))
     self.groq_client = Groq(
-      api_key="",
+      api_key="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",
     )
     self.EMBEDDINGS_LLM = "bge-large"
-    self.LLAMA_LLM = 'llama-3.2-1b-preview'
+    self.LLAMA_LLM = 'gemma2-9b-it'
     self.DEEPSEEK_LLM = 'deepseek-r1-distill-llama-70b'
 
   def print_chat_history(self):
@@ -28,7 +28,7 @@ class ChatService:
     # Load the document
     documents = loader.load()
     text_splits = self.split_documents(documents)
-    self.add_to_db("EmbeddingsCollection", filename, text_splits)
+    return self.add_to_db("EmbeddingsCollection", filename, text_splits)
 
   def split_documents(self, documents, chunk_size=200, chunk_overlap=50):
     # Split the documents into chunks
@@ -53,6 +53,7 @@ class ChatService:
           embeddings=[response]
       )
     print("Documents Saved")
+    return "Document Saved"
 
   def send_llm_query(self, prompt, model):
     chat_completion = self.groq_client.chat.completions.create(
@@ -65,10 +66,11 @@ class ChatService:
     return chat_completion.choices[0].message.role, chat_completion.choices[0].message.content
 
   def contextualize_question(self, question):
-    if len(self.historical_questions) > 0:
+    if self.historical_questions != '':
+      print(self.historical_questions)
       prompt = f"""
-        Given a chat history and the latest user question which might reference context in the chat history, formulate a standalone question which can be understood without the chat history. Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
-        History: {','.join(self.historical_questions)}
+        Given a chat history and the latest user question which might reference context in the chat history, formulate a standalone question which can be understood without the chat history. Do NOT answer the question, just return the question. If the question asked is not relevant to chat history, return it without chaning anything.
+        History: {self.historical_questions}
         Current Question: {question}
         """
       _, content = self.send_llm_query(prompt, self.LLAMA_LLM)
@@ -92,13 +94,12 @@ class ChatService:
     })
 
   def add_to_historical_questions(self, question):
-    if len(self.historical_questions) == 5:
-      self.historical_questions.pop(0)
-    self.historical_questions.append(question)
+    self.historical_questions = question
 
   def ask_question(self, question):
     contextualized_question = self.contextualize_question(question)
-    self.add_to_historical_questions(question)
+    print('Question: ', contextualized_question)
+    self.add_to_historical_questions(contextualized_question)
     self.add_to_chat_history("user", question)
 
     documents, metadata = self.retrieve_documents("EmbeddingsCollection", contextualized_question, 3)

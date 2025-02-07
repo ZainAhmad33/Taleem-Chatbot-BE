@@ -11,11 +11,20 @@ router = APIRouter(
     tags=["items"],
 )
 
-fake_items_db = {"plumbus": {"name": "Plumbus"}, "gun": {"name": "Portal Gun"}}
 # injecting service dependency
 chat_service_dependency = Annotated[ChatService, Depends(get_chat_service)]
 
 @router.get("")
 async def read_items(chat_service: chat_service_dependency):
     res = chat_service.chat_history
+    return {"res": res}
+
+@router.post("/uploadBook")
+async def upload_book(chat_service: chat_service_dependency):
+    res = chat_service.add_document('./Content/Physics9.pdf')
+    return {"res": res}
+
+@router.post("/askQuestion")
+async def upload_book(question:str, chat_service: chat_service_dependency):
+    res = chat_service.ask_question(question)
     return {"res": res}
