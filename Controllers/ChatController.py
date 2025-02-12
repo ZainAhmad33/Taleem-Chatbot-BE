@@ -8,8 +8,8 @@ from Models.Request.ChatRequestModel import ChatRequestModel
 # tags specifies actions group name for documentation (swagger)
 
 router = APIRouter(
-    prefix="/items",
-    tags=["items"],
+    prefix="/chat",
+    tags=["chat"],
 )
 
 # injecting service dependency
