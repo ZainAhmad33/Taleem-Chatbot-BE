@@ -17,7 +17,7 @@ class MessageResponseModel(BaseModel):
     def create(cls, _role: str, _content: str, _pages: set, _references: List[str], _historical_question:str, _reasoning: str):
         return cls(
             role = _role,
-            content = _content.split('\n'),
+            content = Helpers.remove_newlines_in_latex(_content).split('\n'),
             references = [Helpers.extract_two_sentences(Helpers.remove_newlines(text)) for text in _references],
             pages =  [i + 1 for i in _pages],
             historical_question = _historical_question,

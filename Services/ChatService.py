@@ -89,7 +89,13 @@ class ChatService:
       query_embeddings=[query_embedding],
       n_results=n_results
     )
-    return results['documents'][0], results['metadatas'][0]
+    docs = []
+    metadatas = []
+    for idx, dist in enumerate(results['distances'][0]):
+      if dist <= 250:
+        docs.append(results['documents'][0][idx])
+        metadatas.append(results['metadatas'][0][idx])
+    return docs, metadatas
 
   async def add_to_chat_history(self, role, content):
     self.chat_history.append({

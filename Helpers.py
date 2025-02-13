@@ -21,3 +21,15 @@ def extract_two_sentences(text):
 
 def remove_newlines(text):
     return text.replace("\n", " ").replace("\r", " ").strip()
+
+def remove_newlines_in_latex(text):
+    # Remove newlines inside LaTeX expressions (\\[ \\] or \\( \\))
+    def replace_latex(match):
+        # Remove newlines from LaTeX expressions and return the cleaned-up expression
+        return match.group(0).replace('\n', ' ')
+    
+    # Regex to match LaTeX equations inside \\[ \\] or \\( \\)
+    latex_regex = r"(\\\[.*?\\\]|\\(.*?\\))"
+    cleaned_text = re.sub(latex_regex, replace_latex, text, flags=re.DOTALL)
+    
+    return cleaned_text
