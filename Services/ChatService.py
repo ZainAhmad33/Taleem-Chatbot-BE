@@ -8,6 +8,7 @@ from groq import Groq
 from Models.Request.ChatRequestModel import ChatRequestModel
 from Models.Response.MessageResponseModel import MessageResponseModel
 
+from Config import settings
 import Helpers
 
 
@@ -17,7 +18,7 @@ class ChatService:
     self.historical_questions = ''
     self.chroma_client = chromadb.PersistentClient(path=os.path.join(os.getcwd(), "chroma_db"))
     self.groq_client = Groq(
-      api_key="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",
+      api_key=settings.groq_api,
     )
     self.EMBEDDINGS_LLM = "bge-large"
     self.LLAMA_LLM = 'gemma2-9b-it'
