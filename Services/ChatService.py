@@ -1,15 +1,24 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import chromadb
-import ollama
-import os
 from groq import Groq
+from sentence_transformers import SentenceTransformer
+
+import base64
+from io import BytesIO
+import os
+import tempfile
 
 from Models.Request.ChatRequestModel import ChatRequestModel
+from Models.Request.UploadBookRequestModel import UploadBookRequestModel
+
 from Models.Response.MessageResponseModel import MessageResponseModel
 
 from Config import settings
 import Helpers
+from Constants import Constants
+
+from fastapi import HTTPException
 
 
 class ChatService:
@@ -20,21 +29,28 @@ class ChatService:
     self.groq_client = Groq(
       api_key=settings.groq_api,
     )
-    self.EMBEDDINGS_LLM = "bge-large"
-    self.LLAMA_LLM = 'gemma2-9b-it'
-    self.DEEPSEEK_LLM = 'deepseek-r1-distill-llama-70b'
+    self.embeddings_model = SentenceTransformer(settings.embeddings_model, trust_remote_code=True)
+    self.LLAMA_LLM = settings.contextualize_llm
+    self.DEEPSEEK_LLM = settings.chat_llm
 
   async def print_chat_history(self):
     for obj in self.chat_history:
       print(obj)
       print()
 
-  async def add_document(self, filename):
-    loader = PyPDFLoader(filename)
+  async def add_document(self, book_data: UploadBookRequestModel):
+    pdf_data = base64.b64decode(book_data.filedata)
+    pdf_file = BytesIO(pdf_data)
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(pdf_data)
+        tmp_file_path = tmp_file.name 
+    
+    loader = PyPDFLoader(tmp_file_path)
     # Load the document
     documents = loader.load()
     text_splits = await self.split_documents(documents)
-    return self.add_to_db("EmbeddingsCollection", filename, text_splits)
+    return await self.add_to_db(book_data.filename, text_splits)
 
   async def split_documents(self, documents, chunk_size=200, chunk_overlap=50):
     # Split the documents into chunks
@@ -43,7 +59,7 @@ class ChatService:
     )
     return text_splitter.split_documents(documents)
 
-  async def add_to_db(self, collection_name, document_name, document_splits):
+  async def add_to_db(self, collection_name, document_splits):
     print("Saving documents to database for retrieval")
     collection = self.chroma_client.get_or_create_collection(
         name=collection_name,
@@ -51,11 +67,11 @@ class ChatService:
     )
 
     for i, doc in enumerate(document_splits):
-      response = ollama.embeddings( prompt=doc.page_content, model=self.EMBEDDINGS_LLM )["embedding"]
+      response = self.embeddings_model.encode(doc.page_content).tolist()
       collection.add(
           documents=[doc.page_content],
           metadatas=[doc.metadata],
-          ids=[f'"{document_name}_{i}"'],
+          ids=[f'"{collection_name}_{i}"'],
           embeddings=[response]
       )
     print("Documents Saved")
@@ -84,7 +100,7 @@ class ChatService:
       return question
 
   async def retrieve_documents(self, collection_name, question, n_results=2):
-    query_embedding = ollama.embeddings( prompt=question, model=self.EMBEDDINGS_LLM )["embedding"]
+    query_embedding = self.embeddings_model.encode(question).tolist()
     collection = self.chroma_client.get_or_create_collection(name=collection_name)
     results = collection.query(
       query_embeddings=[query_embedding],
@@ -106,26 +122,38 @@ class ChatService:
 
   async def add_to_historical_questions(self, question):
     self.historical_questions = question
+    
+  async def get_embedding_collection_name(self, grade, course):
+    if grade == Constants.grade_9th:
+      if course == Constants.course_physics:
+        return settings.physics_9th_collection
+      elif course == Constants.course_biology:
+        return settings.biology_9th_collection
+    return None
 
   async def ask_question(self, chat_data: ChatRequestModel):
     question = chat_data.chat.pop().content
     historical_question = chat_data.historical_question
+    
     grade = chat_data.grade
     course = chat_data.course
+    collection_name = await self.get_embedding_collection_name(grade, course)
+    if collection_name is None:
+      raise HTTPException(status_code=400, detail="Invalid grade or course")
     
     contextualized_question = await self.contextualize_question(historical_question, question)
     print('Question: ', contextualized_question)
     #self.add_to_historical_questions(contextualized_question)
     #self.add_to_chat_history("user", question)
 
-    documents, metadata = await self.retrieve_documents("EmbeddingsCollection", contextualized_question, 3)
+    documents, metadata = await self.retrieve_documents(collection_name, contextualized_question, 3)
     formatted_documents = "\\n".join(documents)
     prompt=f"""You are an assistant for question-answering tasks.
         If you don't know the answer, just say that you don't know.
         Give answers either in English aur in Urdu only based on questions language. Don't use Hindi.
         For any mathematical quesions, give step by step solution with explanations.
         Question: {contextualized_question}
-        Use the following documents to answer the question. Also use in-text citations in the format [1],[2],[3]:
+        Use the following documents to answer the question. Also use in-text citations in the format [1],[2],[3]. Do not create a bibliography.:
         Documents: {formatted_documents}
         Answer:
         """

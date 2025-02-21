@@ -2,6 +2,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from Services.ChatService import ChatService, get_chat_service
 from Models.Request.ChatRequestModel import ChatRequestModel
+from Models.Request.UploadBookRequestModel import UploadBookRequestModel
 
 # for each controller 
 # prefix specifies actions route
@@ -21,8 +22,8 @@ async def read_items(chat_service: chat_service_dependency):
     return {"res": res}
 
 @router.post("/uploadBook")
-async def upload_book(chat_service: chat_service_dependency):
-    res = chat_service.add_document('./Content/Physics9.pdf')
+async def upload_book(book_data: UploadBookRequestModel, chat_service: chat_service_dependency):
+    res = await chat_service.add_document(book_data)
     return {"res": res}
 
 @router.post("/askQuestion")

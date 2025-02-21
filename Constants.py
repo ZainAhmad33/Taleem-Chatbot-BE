@@ -1,0 +1,10 @@
+class Constants:
+    grade_9th = "9th"
+    grade_10th = "10th"
+    grade_11th = "11th"
+    grade_12th = "12th"
+    course_physics = "Physics"
+    course_biology = "Biology"
+    course_chemistry = "Chemistry"
+    course_math = "Math"
+    course_computer_science = "Computer Science"
