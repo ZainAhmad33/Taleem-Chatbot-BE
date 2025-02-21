@@ -5,6 +5,4 @@ langchain
 langchain-community
 chromadb
 groq
-sentence-transformers
 uvicorn
-einops

@@ -3,3 +3,5 @@ Controllers\__pycache__
 chroma_db
 Content
 .env
+
+.vercel
