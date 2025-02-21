@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     embeddings_model: str
     physics_9th_collection: str
     biology_9th_collection: str
+    nomic_key: str
     
     model_config = SettingsConfigDict(env_file=".env")
     

@@ -2,12 +2,11 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import chromadb
 from groq import Groq
-from sentence_transformers import SentenceTransformer
 
 import base64
-from io import BytesIO
 import os
 import tempfile
+import requests
 
 from Models.Request.ChatRequestModel import ChatRequestModel
 from Models.Request.UploadBookRequestModel import UploadBookRequestModel
@@ -29,7 +28,6 @@ class ChatService:
     self.groq_client = Groq(
       api_key=settings.groq_api,
     )
-    self.embeddings_model = SentenceTransformer(settings.embeddings_model, trust_remote_code=True)
     self.LLAMA_LLM = settings.contextualize_llm
     self.DEEPSEEK_LLM = settings.chat_llm
 
@@ -40,7 +38,6 @@ class ChatService:
 
   async def add_document(self, book_data: UploadBookRequestModel):
     pdf_data = base64.b64decode(book_data.filedata)
-    pdf_file = BytesIO(pdf_data)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(pdf_data)
@@ -67,7 +64,7 @@ class ChatService:
     )
 
     for i, doc in enumerate(document_splits):
-      response = self.embeddings_model.encode(doc.page_content).tolist()
+      response = await self.get_embeddings(doc.page_content)
       collection.add(
           documents=[doc.page_content],
           metadatas=[doc.metadata],
@@ -100,7 +97,7 @@ class ChatService:
       return question
 
   async def retrieve_documents(self, collection_name, question, n_results=2):
-    query_embedding = self.embeddings_model.encode(question).tolist()
+    query_embedding = await self.get_embeddings(question)
     collection = self.chroma_client.get_or_create_collection(name=collection_name)
     results = collection.query(
       query_embeddings=[query_embedding],
@@ -163,6 +160,25 @@ class ChatService:
     response = MessageResponseModel.create(role, content, {data['page'] for data in metadata}, documents, contextualized_question, reasoning)
 
     return response
+
+  async def get_embeddings(self, text:str):
+    url = 'https://api-atlas.nomic.ai/v1/embedding/text'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {settings.nomic_key}'
+    }
+    data = {
+        "texts": [text],
+        "task_type": "search_document",
+        "max_tokens_per_text": 8192,
+        "dimensionality": 768
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()  # Raise an exception for HTTP errors
+    output = response.json()
+    return output['embeddings'][0]
 
 service = ChatService()
 
